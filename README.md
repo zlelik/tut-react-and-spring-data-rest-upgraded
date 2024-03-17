@@ -1,18 +1,18 @@
-#Updated React.js and Spring Data REST tutorial (March 2024)
+# Updated React.js and Spring Data REST tutorial (March 2024)
 
-#Introduction
+# Introduction
 The original tutorial here [https://spring.io/guides/tutorials/react-and-spring-data-rest/](https://spring.io/guides/tutorials/react-and-spring-data-rest/) is outdated. Latest code update is from April 2020 and it simply does not work with the latest versions of Spring and other dependencies. I managed to run it and updated all the dependencies.
 
-#Build
+# Build
 Build from command line: `mvn clean package`
 
-#Run the server from command line
+# Run the server from command line
 1. From command like this `java -jar spring-rest-react-jpa-0.0.1-SNAPSHOT.jar`
 2. From eclipse open and run this class: `com.greglturnquist.payroll.ReactAndSpringDataRestApplication`
 3. Webapp will be available by this link [http://localhost:8080](http://localhost:8080)
 
 
-#Update all dependencies to the latest versions:
+# Update all dependencies to the latest versions:
 1. Check the latest version of `spring-boot-starter-parent` artifact and update it if needed in `pom.xml` inside `<parent>` tag.
 2. Check in the google for latest stable version of node.js or here [https://nodejs.org/en/download](https://nodejs.org/en/download) (LTS version).
 3. Update node.version and npm.version to the values from step 1 above.
