@@ -1,7 +1,7 @@
 # Updated React.js and Spring Data REST tutorial (March 2024)
 
 # Introduction
-The original tutorial here [https://spring.io/guides/tutorials/react-and-spring-data-rest/](https://spring.io/guides/tutorials/react-and-spring-data-rest/) is outdated. Latest code update is from April 2020 here [https://github.com/spring-attic/tut-react-and-spring-data-rest/](https://github.com/spring-attic/tut-react-and-spring-data-rest/) and it simply does not work with the latest versions of Spring and other dependencies. I managed to run it and updated all the dependencies.
+The original tutorial was here [https://spring.io/guides/tutorials/react-and-spring-data-rest/](https://spring.io/guides/tutorials/react-and-spring-data-rest/) but now deleted. Some steps still can be found in Github and all these together with the latest code (updated April 2020) is here here [https://github.com/spring-attic/tut-react-and-spring-data-rest/](https://github.com/spring-attic/tut-react-and-spring-data-rest/). It simply does not work with the latest versions of Spring and other dependencies. I managed to run it and updated all the dependencies.
 
 # Build
 Build from command line: `mvn clean package`
