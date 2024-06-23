@@ -2,6 +2,7 @@
 
 const React = require('react');
 const ReactDOM = require('react-dom');
+const ReactDOMClient = require('react-dom/client');
 const when = require('when');
 const client = require('./client');
 
@@ -461,7 +462,5 @@ class Employee extends React.Component {
 	}
 }
 
-ReactDOM.render(
-	<App loggedInManager={document.getElementById('managername').innerHTML } />,
-	document.getElementById('react')
-)
+const rootReactElement = ReactDOMClient.createRoot(document.getElementById('react'));
+rootReactElement.render(<App loggedInManager={document.getElementById('managername').innerHTML } />);
