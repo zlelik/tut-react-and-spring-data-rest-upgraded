@@ -1,247 +1,8 @@
-/*
-'use strict';
-
-import React from 'react';
-import ReactDOM from 'react-dom';
-import ReactDOMClient from 'react-dom/client';
-import when from 'when';
-import client from './client';
-import follow from './follow'; // function to hop multiple links by "rel"
-import CreateDialog from './components/CreateDialog';
-import EmployeeList from './components/EmployeeList';
-import stompClient from './websocket-listener';
-
-const root = '/api';
-
-class App extends React.Component {
-
-  constructor(props) {
-    super(props);
-    this.state = { employees: [], attributes: [], page: 1, pageSize: 2, links: {}, loggedInManager: this.props.loggedInManager };
-    this.updatePageSize = this.updatePageSize.bind(this);
-    this.onCreate = this.onCreate.bind(this);
-    this.onUpdate = this.onUpdate.bind(this);
-    this.onDelete = this.onDelete.bind(this);
-    this.onNavigate = this.onNavigate.bind(this);
-    this.refreshCurrentPage = this.refreshCurrentPage.bind(this);
-    this.refreshAndGoToLastPage = this.refreshAndGoToLastPage.bind(this);
-  }
-
-  loadFromServer(pageSize) {
-    follow(client, root, [
-      { rel: 'employees', params: { size: pageSize } }]
-    ).then(employeeCollection => {
-      return client({
-        method: 'GET',
-        path: employeeCollection.entity._links.profile.href,
-        headers: { 'Accept': 'application/schema+json' }
-      }).then(schema => {*/
-        /**
-         * Filter unneeded JSON Schema properties, like uri references and
-         * subtypes ($ref).
-         */
-        /*Object.keys(schema.entity.properties).forEach(function(property) {
-          if (schema.entity.properties[property].hasOwnProperty('format') &&
-            schema.entity.properties[property].format === 'uri') {
-            delete schema.entity.properties[property];
-          }
-          else if (schema.entity.properties[property].hasOwnProperty('$ref')) {
-            delete schema.entity.properties[property];
-          }
-        });
-
-        this.schema = schema.entity;
-        this.links = employeeCollection.entity._links;
-        return employeeCollection;
-      });
-    }).then(employeeCollection => {
-      this.page = employeeCollection.entity.page;
-      return employeeCollection.entity._embedded.employees.map(employee =>
-        client({
-          method: 'GET',
-          path: employee._links.self.href
-        })
-      );
-    }).then(employeePromises => {
-      return when.all(employeePromises);
-    }).then(employees => {
-      this.setState({
-        page: this.page,
-        employees: employees,
-        attributes: Object.keys(this.schema.properties),
-        pageSize: pageSize,
-        links: this.links
-      });
-
-    });
-  }
-
-  onCreate(newEmployee) {
-    follow(client, root, ['employees']).then(response => {
-      client({
-
-        method: 'POST',
-        path: response.entity._links.self.href,
-        entity: newEmployee,
-        headers: { 'Content-Type': 'application/json' }
-      })
-    })
-  }
-
-  onUpdate(employee, updatedEmployee) {
-    if (employee.entity.manager.name === this.state.loggedInManager) {
-      updatedEmployee["manager"] = employee.entity.manager;
-      client({
-        method: 'PUT',
-        path: employee.entity._links.self.href,
-        entity: updatedEmployee,
-        headers: {
-          'Content-Type': 'application/json',
-          'If-Match': employee.headers.Etag
-        }
-      }).then(response => {
-      }, response => {
-        if (response.status.code === 403) {
-          alert('ACCESS DENIED: You are not authorized to update ' +
-            employee.entity._links.self.href);
-        }
-        if (response.status.code === 412) {
-          alert('DENIED: Unable to update ' + employee.entity._links.self.href + '. Your copy is stale.');
-        }
-      });
-    } else {
-      alert("You are not authorized to update");
-    }
-  }
-
-  onDelete(employee) {
-    client({ method: 'DELETE', path: employee.entity._links.self.href }
-    ).then(response => { },
-      response => {
-        if (response.status.code === 403) {
-          alert('ACCESS DENIED: You are not authorized to delete ' +
-            employee.entity._links.self.href);
-        }
-      }
-    );
-  }
-
-  onNavigate(navUri) {
-    client({
-      method: 'GET',
-      path: navUri
-    }).then(employeeCollection => {
-      this.links = employeeCollection.entity._links;
-      this.page = employeeCollection.entity.page;
-
-      return employeeCollection.entity._embedded.employees.map(employee =>
-        client({
-          method: 'GET',
-          path: employee._links.self.href
-        })
-      );
-    }).then(employeePromises => {
-      return when.all(employeePromises);
-    }).then(employees => {
-      this.setState({
-        page: this.page,
-        employees: employees,
-        attributes: Object.keys(this.schema.properties),
-        pageSize: this.state.pageSize,
-        links: this.links
-      });
-    });
-  }
-
-  updatePageSize(pageSize) {
-    if (pageSize !== this.state.pageSize) {
-      this.loadFromServer(pageSize);
-    }
-  }
-
-  refreshAndGoToLastPage(message) {
-    follow(client, root, [{
-      rel: 'employees',
-      params: { size: this.state.pageSize }
-    }]).then(response => {
-      if (response.entity._links.last !== undefined) {
-        this.onNavigate(response.entity._links.last.href);
-      } else {
-        this.onNavigate(response.entity._links.self.href);
-      }
-    })
-  }
-
-  refreshCurrentPage(message) {
-    follow(client, root, [{
-      rel: 'employees',
-      params: {
-        size: this.state.pageSize,
-        page: this.state.page.number
-      }
-    }]).then(employeeCollection => {
-      this.links = employeeCollection.entity._links;
-      this.page = employeeCollection.entity.page;
-
-      return employeeCollection.entity._embedded.employees.map(employee => {
-        return client({
-          method: 'GET',
-          path: employee._links.self.href
-        })
-      });
-    }).then(employeePromises => {
-      return when.all(employeePromises);
-    }).then(employees => {
-      this.setState({
-        page: this.page,
-        employees: employees,
-        attributes: Object.keys(this.schema.properties),
-        pageSize: this.state.pageSize,
-        links: this.links
-      });
-    });
-  }
-
-  componentDidMount() {
-    this.loadFromServer(this.state.pageSize);
-    stompClient.register([
-      { route: '/topic/newEmployee', callback: this.refreshAndGoToLastPage },
-      { route: '/topic/updateEmployee', callback: this.refreshCurrentPage },
-      { route: '/topic/deleteEmployee', callback: this.refreshCurrentPage }
-    ]);
-  }
-
-  render() {
-    return (
-      <div>
-        <CreateDialog attributes={this.state.attributes} onCreate={this.onCreate} />
-        <EmployeeList page={this.state.page}
-          employees={this.state.employees}
-          links={this.state.links}
-          pageSize={this.state.pageSize}
-          attributes={this.state.attributes}
-          onNavigate={this.onNavigate}
-          onUpdate={this.onUpdate}
-          onDelete={this.onDelete}
-          updatePageSize={this.updatePageSize}
-          loggedInManager={this.state.loggedInManager} />
-      </div>
-    )
-  }
-}
-
-const rootReactElement = ReactDOMClient.createRoot(document.getElementById('react'));
-rootReactElement.render(<App loggedInManager={document.getElementById('managername').innerHTML} />);
-*/
-
-// After Create/Update/Delete refresf 10 times
-// Go to last page keep refreshing the grid and reading data (compare to original code, maybe bug there)
-
 'use strict';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOMClient from 'react-dom/client';
-import when from 'when';
+//import when from 'when';
 import client from './client';
 import follow from './follow'; // function to hop multiple links by "rel"
 import CreateDialog from './components/CreateDialog';
@@ -259,106 +20,142 @@ const App = ({ loggedInManager }) => {
   const [schema, setSchema] = useState(null);
   
   const stompClientRef = useRef(null);
+  const pageRef = useRef(page);
+  const pageSizeRef = useRef(pageSize);
 
-  const loadFromServer = useCallback((pageSize) => {
-    follow(client, root, [{ rel: 'employees', params: { size: pageSize } }])
-      .then(employeeCollection => {
-        return client({
-          method: 'GET',
-          path: employeeCollection.entity._links.profile.href,
-          headers: { 'Accept': 'application/schema+json' }
-        }).then(schema => {
-          // Filter unneeded JSON Schema properties
-          Object.keys(schema.entity.properties).forEach(property => {
-            if (schema.entity.properties[property].hasOwnProperty('format') &&
-                schema.entity.properties[property].format === 'uri') {
-              delete schema.entity.properties[property];
-            } else if (schema.entity.properties[property].hasOwnProperty('$ref')) {
-              delete schema.entity.properties[property];
-            }
-          });
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
-          setSchema(schema.entity);
-          setLinks(employeeCollection.entity._links);
-          return employeeCollection;
-        });
-      })
-      .then(employeeCollection => {
-        setPage(employeeCollection.entity.page);
-        return employeeCollection.entity._embedded.employees.map(employee =>
-          client({ method: 'GET', path: employee._links.self.href })
-        );
-      })
-      .then(employeePromises => when.all(employeePromises))
-      .then(employees => {
-        setEmployees(employees);
-        if (schema) {
-          setAttributes(Object.keys(schema.properties));
-        }
-        setPageSize(pageSize);
-        setLinks(links);
+  useEffect(() => {
+    pageSizeRef.current = pageSize;
+  }, [pageSize]);
+
+  const loadFromServer = useCallback(async (pageSize) => {
+    try {
+      // Fetch employee collection
+      const employeeCollection = await follow(client, root, [{ rel: 'employees', params: { size: pageSize } }]);
+
+      // Fetch schema
+      const schemaResponse = await client({
+        method: 'GET',
+        path: employeeCollection.entity._links.profile.href,
+        headers: { 'Accept': 'application/schema+json' }
       });
-  }, []);
 
-  const onCreate = useCallback((newEmployee) => {
-    follow(client, root, ['employees']).then(response => {
-      client({
+      // Filter unneeded JSON Schema properties
+      Object.keys(schemaResponse.entity.properties).forEach(property => {
+        if (schemaResponse.entity.properties[property].hasOwnProperty('format') && schemaResponse.entity.properties[property].format === 'uri') {
+          delete schemaResponse.entity.properties[property];
+        } else if (schemaResponse.entity.properties[property].hasOwnProperty('$ref')) {
+          delete schemaResponse.entity.properties[property];
+        }
+      });
+
+      setSchema(schemaResponse.entity);
+
+      setLinks(employeeCollection.entity._links);
+
+      // Set page
+      setPage(employeeCollection.entity.page);
+
+      // Fetch employees
+      const employeePromises = employeeCollection.entity._embedded.employees.map(employee =>
+        client({ method: 'GET', path: employee._links.self.href })
+      );
+
+      // Wait for all employee requests to resolve
+      const employees = await Promise.all(employeePromises);
+
+      setEmployees(employees);
+
+      if ((schemaResponse) && (schemaResponse.entity) && (schemaResponse.entity.properties)) {
+        setAttributes(Object.keys(schemaResponse.entity.properties));
+      }
+      setPageSize(pageSize);
+    } catch (error) {
+      console.error("Failed to load from server: ", error);
+    }
+  }, [links, schema]);
+
+  const onCreate = useCallback(async (newEmployee) => {
+    try {
+      // Follow the client to the 'employees' link
+      const response = await follow(client, root, ['employees']);
+      
+      // Make a POST request to create a new employee
+      await client({
         method: 'POST',
         path: response.entity._links.self.href,
         entity: newEmployee,
         headers: { 'Content-Type': 'application/json' }
-      }).then(() => loadFromServer(pageSize));
-    });
-  }, [loadFromServer, pageSize]);
+      });
+      
+    } catch (error) {
+      console.error('Error creating employee: ', error);
+    }
+  }, []);
 
-  const onUpdate = useCallback((employee, updatedEmployee) => {
-    if (employee.entity.manager.name === loggedInManager) {
+  const onUpdate = useCallback(async (employee, updatedEmployee) => {
+    if (employee.entity.manager.name === loggedInManager || 1==1) {//!!!
       updatedEmployee["manager"] = employee.entity.manager;
-      client({
-        method: 'PUT',
-        path: employee.entity._links.self.href,
-        entity: updatedEmployee,
-        headers: {
-          'Content-Type': 'application/json',
-          'If-Match': employee.headers.Etag
-        }
-      }).then(() => loadFromServer(pageSize), response => {
-        if (response.status.code === 403) {
+
+      try {
+        const response = await client({
+          method: 'PUT',
+          path: employee.entity._links.self.href,
+          entity: updatedEmployee,
+          headers: {
+            'Content-Type': 'application/json',
+            'If-Match': employee.headers.Etag
+          }
+        });
+
+      } catch (error) {
+        if (error.status.code === 403) {
           alert('ACCESS DENIED: You are not authorized to update ' + employee.entity._links.self.href);
-        }
-        if (response.status.code === 412) {
+        } else if (error.status.code === 412) {
           alert('DENIED: Unable to update ' + employee.entity._links.self.href + '. Your copy is stale.');
         }
-      });
+      }
     } else {
       alert("You are not authorized to update");
     }
-  }, [loadFromServer, loggedInManager, pageSize]);
+  }, [loggedInManager]);
+  
+  const onDelete = useCallback(async (employee) => {
+    try {
+      const response = await client({ method: 'DELETE', path: employee.entity._links.self.href });
+    } catch (error) {
+      if (error.status.code === 403) {
+        alert('ACCESS DENIED: You are not authorized to delete ' + employee.entity._links.self.href);
+      }
+    }
+  }, []);
+  
+  const onNavigate = useCallback(async (navUri) => {
+    try {
+      // Fetch the employee collection
+      const employeeCollection = await client({ method: 'GET', path: navUri });
 
-  const onDelete = useCallback((employee) => {
-    client({ method: 'DELETE', path: employee.entity._links.self.href })
-      .then(() => loadFromServer(pageSize), response => {
-        if (response.status.code === 403) {
-          alert('ACCESS DENIED: You are not authorized to delete ' + employee.entity._links.self.href);
-        }
-      });
-  }, [loadFromServer, pageSize]);
+      // Update the links and page state
+      setLinks(employeeCollection.entity._links);
+      setPage(employeeCollection.entity.page);
 
-  const onNavigate = useCallback((navUri) => {
-    client({ method: 'GET', path: navUri })
-      .then(employeeCollection => {
-        setLinks(employeeCollection.entity._links);
-        setPage(employeeCollection.entity.page);
-        return employeeCollection.entity._embedded.employees.map(employee =>
-          client({ method: 'GET', path: employee._links.self.href })
-        );
-      })
-      .then(employeePromises => when.all(employeePromises))
-      .then(employees => {
-        setEmployees(employees);
-        setAttributes(Object.keys(schema.properties));
-      });
-  }, [schema]);
+      // Fetch individual employee data
+      const employeePromises = employeeCollection.entity._embedded.employees.map(employee =>
+        client({ method: 'GET', path: employee._links.self.href })
+      );
+
+      // Wait for all employee requests to resolve
+      const employeesArg = await Promise.all(employeePromises);
+
+      // Update the employees state
+      setEmployees(employeesArg);
+    } catch (error) {
+      console.error("onNavigate error: ", error);
+    }
+  }, []);
 
   const updatePageSize = useCallback((newPageSize) => {
     if (newPageSize !== pageSize) {
@@ -366,69 +163,65 @@ const App = ({ loggedInManager }) => {
     }
   }, [loadFromServer, pageSize]);
 
-  const refreshAndGoToLastPage = useCallback(() => {
-    follow(client, root, [{ rel: 'employees', params: { size: pageSize } }])
-      .then(response => {
-        if (response.entity._links.last !== undefined) {
-          onNavigate(response.entity._links.last.href);
-        } else {
-          onNavigate(response.entity._links.self.href);
-        }
-      });
-  }, [pageSize, onNavigate]);
+  const refreshAndGoToLastPage = useCallback(async () => {
+    try {
+      // Follow the client to get the employee collection
+      const response = await follow(client, root, [{ rel: 'employees', params: { size: pageSize } }]);
+      
+      // Navigate to the last page if it exists, otherwise to the current page
+      if (response.entity._links.last !== undefined) {
+        await onNavigate(response.entity._links.last.href);
+      } else {
+        await onNavigate(response.entity._links.self.href);
+      }
+    } catch (error) {
+      console.error("Error in refreshAndGoToLastPage: ", error);
+    }
+  }, []);
 
-  const refreshCurrentPage = useCallback(() => {
-    follow(client, root, [{ rel: 'employees', params: { size: pageSize, page: page.number } }])
-      .then(employeeCollection => {
-        setLinks(employeeCollection.entity._links);
-        setPage(employeeCollection.entity.page);
-        return employeeCollection.entity._embedded.employees.map(employee =>
-          client({ method: 'GET', path: employee._links.self.href })
-        );
-      })
-      .then(employeePromises => when.all(employeePromises))
-      .then(employees => {
-        setEmployees(employees);
-        setAttributes(Object.keys(schema.properties));
-      });
-  }, [page.number, pageSize, schema]);
+  const refreshCurrentPage = useCallback(async () => {
+    // Access current values from refs
+    const currentPage = pageRef.current;
+    const currentPageSize = pageSizeRef.current;
 
+    try {
+      // Follow the client to get the employee collection
+      const employeeCollection = await follow(client, root, [{ rel: 'employees', params: { size: currentPageSize, page: currentPage.number } }]);
+
+      // Update state with links and page information
+      setLinks(employeeCollection.entity._links);
+      setPage(employeeCollection.entity.page);
+
+      // Fetch individual employee details
+      const employeePromises = employeeCollection.entity._embedded.employees.map(employee =>
+        client({ method: 'GET', path: employee._links.self.href })
+      );
+
+      // Resolve all employee promises
+      const employees = await Promise.all(employeePromises);
+
+      // Update state with employee data
+      setEmployees(employees);
+    } catch (error) {
+      console.error("Error in refreshCurrentPage: ", error);
+    }
+  }, [pageRef, pageSizeRef]);
+
+  
   useEffect(() => {
     loadFromServer(pageSize);
     if (stompClientRef.current === null) {
       const routes = [
         { route: '/topic/newEmployee', callback: refreshAndGoToLastPage },
-        { route: '/topic/updateEmployee', callback: refreshCurrentPage },
-        { route: '/topic/deleteEmployee', callback: refreshCurrentPage }
+        { route: '/topic/updateEmployee', callback: () => { refreshCurrentPage(); } },
+        { route: '/topic/deleteEmployee', callback: () => { refreshCurrentPage(); } }
       ];
 
       stompClient.register(routes);
       stompClientRef.current = stompClient;
       stompClientRef.current.routes = routes; // Store the routes in the ref
     }
-  }, [loadFromServer, pageSize]);
-
-  // This effect handles WebSocket connections
-//  useEffect(() => {
-//    if (stompClientRef.current === null) {
-//      const routes = [
-//        { route: '/topic/newEmployee', callback: refreshAndGoToLastPage },
-//        { route: '/topic/updateEmployee', callback: refreshCurrentPage },
-//        { route: '/topic/deleteEmployee', callback: refreshCurrentPage }
-//      ];
-//
-//      stompClient.register(routes);
-//      stompClientRef.current = stompClient;
-//      stompClientRef.current.routes = routes; // Store the routes in the ref
-//    }
-
-    //return () => {
-      /*if (stompClientRef.current !== null) {
-        stompClientRef.current.unregister(stompClientRef.current.routes); // Unregister the stored routes
-        stompClientRef.current = null;
-      }*/
-//    };
-//  }, [refreshAndGoToLastPage, refreshCurrentPage]);
+  }, []);
 
   return (
     <div>
