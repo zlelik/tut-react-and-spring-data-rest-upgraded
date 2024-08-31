@@ -1,3 +1,4 @@
+/*
 'use strict';
 
 import React from 'react';
@@ -34,12 +35,12 @@ class App extends React.Component {
         method: 'GET',
         path: employeeCollection.entity._links.profile.href,
         headers: { 'Accept': 'application/schema+json' }
-      }).then(schema => {
+      }).then(schema => {*/
         /**
          * Filter unneeded JSON Schema properties, like uri references and
          * subtypes ($ref).
          */
-        Object.keys(schema.entity.properties).forEach(function(property) {
+        /*Object.keys(schema.entity.properties).forEach(function(property) {
           if (schema.entity.properties[property].hasOwnProperty('format') &&
             schema.entity.properties[property].format === 'uri') {
             delete schema.entity.properties[property];
@@ -230,4 +231,224 @@ class App extends React.Component {
 }
 
 const rootReactElement = ReactDOMClient.createRoot(document.getElementById('react'));
+rootReactElement.render(<App loggedInManager={document.getElementById('managername').innerHTML} />);
+*/
+
+// After Create/Update/Delete refresf 10 times
+// Go to last page keep refreshing the grid and reading data (compare to original code, maybe bug there)
+
+'use strict';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOMClient from 'react-dom/client';
+import when from 'when';
+import client from './client';
+import follow from './follow'; // function to hop multiple links by "rel"
+import CreateDialog from './components/CreateDialog';
+import EmployeeList from './components/EmployeeList';
+import stompClient from './websocket-listener';
+
+const root = '/api';
+
+const App = ({ loggedInManager }) => {
+  const [employees, setEmployees] = useState([]);
+  const [attributes, setAttributes] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(2);
+  const [links, setLinks] = useState({});
+  const [schema, setSchema] = useState(null);
+  
+  const stompClientRef = useRef(null);
+
+  const loadFromServer = useCallback((pageSize) => {
+    follow(client, root, [{ rel: 'employees', params: { size: pageSize } }])
+      .then(employeeCollection => {
+        return client({
+          method: 'GET',
+          path: employeeCollection.entity._links.profile.href,
+          headers: { 'Accept': 'application/schema+json' }
+        }).then(schema => {
+          // Filter unneeded JSON Schema properties
+          Object.keys(schema.entity.properties).forEach(property => {
+            if (schema.entity.properties[property].hasOwnProperty('format') &&
+                schema.entity.properties[property].format === 'uri') {
+              delete schema.entity.properties[property];
+            } else if (schema.entity.properties[property].hasOwnProperty('$ref')) {
+              delete schema.entity.properties[property];
+            }
+          });
+
+          setSchema(schema.entity);
+          setLinks(employeeCollection.entity._links);
+          return employeeCollection;
+        });
+      })
+      .then(employeeCollection => {
+        setPage(employeeCollection.entity.page);
+        return employeeCollection.entity._embedded.employees.map(employee =>
+          client({ method: 'GET', path: employee._links.self.href })
+        );
+      })
+      .then(employeePromises => when.all(employeePromises))
+      .then(employees => {
+        setEmployees(employees);
+        if (schema) {
+          setAttributes(Object.keys(schema.properties));
+        }
+        setPageSize(pageSize);
+        setLinks(links);
+      });
+  }, []);
+
+  const onCreate = useCallback((newEmployee) => {
+    follow(client, root, ['employees']).then(response => {
+      client({
+        method: 'POST',
+        path: response.entity._links.self.href,
+        entity: newEmployee,
+        headers: { 'Content-Type': 'application/json' }
+      }).then(() => loadFromServer(pageSize));
+    });
+  }, [loadFromServer, pageSize]);
+
+  const onUpdate = useCallback((employee, updatedEmployee) => {
+    if (employee.entity.manager.name === loggedInManager) {
+      updatedEmployee["manager"] = employee.entity.manager;
+      client({
+        method: 'PUT',
+        path: employee.entity._links.self.href,
+        entity: updatedEmployee,
+        headers: {
+          'Content-Type': 'application/json',
+          'If-Match': employee.headers.Etag
+        }
+      }).then(() => loadFromServer(pageSize), response => {
+        if (response.status.code === 403) {
+          alert('ACCESS DENIED: You are not authorized to update ' + employee.entity._links.self.href);
+        }
+        if (response.status.code === 412) {
+          alert('DENIED: Unable to update ' + employee.entity._links.self.href + '. Your copy is stale.');
+        }
+      });
+    } else {
+      alert("You are not authorized to update");
+    }
+  }, [loadFromServer, loggedInManager, pageSize]);
+
+  const onDelete = useCallback((employee) => {
+    client({ method: 'DELETE', path: employee.entity._links.self.href })
+      .then(() => loadFromServer(pageSize), response => {
+        if (response.status.code === 403) {
+          alert('ACCESS DENIED: You are not authorized to delete ' + employee.entity._links.self.href);
+        }
+      });
+  }, [loadFromServer, pageSize]);
+
+  const onNavigate = useCallback((navUri) => {
+    client({ method: 'GET', path: navUri })
+      .then(employeeCollection => {
+        setLinks(employeeCollection.entity._links);
+        setPage(employeeCollection.entity.page);
+        return employeeCollection.entity._embedded.employees.map(employee =>
+          client({ method: 'GET', path: employee._links.self.href })
+        );
+      })
+      .then(employeePromises => when.all(employeePromises))
+      .then(employees => {
+        setEmployees(employees);
+        setAttributes(Object.keys(schema.properties));
+      });
+  }, [schema]);
+
+  const updatePageSize = useCallback((newPageSize) => {
+    if (newPageSize !== pageSize) {
+      loadFromServer(newPageSize);
+    }
+  }, [loadFromServer, pageSize]);
+
+  const refreshAndGoToLastPage = useCallback(() => {
+    follow(client, root, [{ rel: 'employees', params: { size: pageSize } }])
+      .then(response => {
+        if (response.entity._links.last !== undefined) {
+          onNavigate(response.entity._links.last.href);
+        } else {
+          onNavigate(response.entity._links.self.href);
+        }
+      });
+  }, [pageSize, onNavigate]);
+
+  const refreshCurrentPage = useCallback(() => {
+    follow(client, root, [{ rel: 'employees', params: { size: pageSize, page: page.number } }])
+      .then(employeeCollection => {
+        setLinks(employeeCollection.entity._links);
+        setPage(employeeCollection.entity.page);
+        return employeeCollection.entity._embedded.employees.map(employee =>
+          client({ method: 'GET', path: employee._links.self.href })
+        );
+      })
+      .then(employeePromises => when.all(employeePromises))
+      .then(employees => {
+        setEmployees(employees);
+        setAttributes(Object.keys(schema.properties));
+      });
+  }, [page.number, pageSize, schema]);
+
+  useEffect(() => {
+    loadFromServer(pageSize);
+    if (stompClientRef.current === null) {
+      const routes = [
+        { route: '/topic/newEmployee', callback: refreshAndGoToLastPage },
+        { route: '/topic/updateEmployee', callback: refreshCurrentPage },
+        { route: '/topic/deleteEmployee', callback: refreshCurrentPage }
+      ];
+
+      stompClient.register(routes);
+      stompClientRef.current = stompClient;
+      stompClientRef.current.routes = routes; // Store the routes in the ref
+    }
+  }, [loadFromServer, pageSize]);
+
+  // This effect handles WebSocket connections
+//  useEffect(() => {
+//    if (stompClientRef.current === null) {
+//      const routes = [
+//        { route: '/topic/newEmployee', callback: refreshAndGoToLastPage },
+//        { route: '/topic/updateEmployee', callback: refreshCurrentPage },
+//        { route: '/topic/deleteEmployee', callback: refreshCurrentPage }
+//      ];
+//
+//      stompClient.register(routes);
+//      stompClientRef.current = stompClient;
+//      stompClientRef.current.routes = routes; // Store the routes in the ref
+//    }
+
+    //return () => {
+      /*if (stompClientRef.current !== null) {
+        stompClientRef.current.unregister(stompClientRef.current.routes); // Unregister the stored routes
+        stompClientRef.current = null;
+      }*/
+//    };
+//  }, [refreshAndGoToLastPage, refreshCurrentPage]);
+
+  return (
+    <div>
+      <CreateDialog attributes={attributes} onCreate={onCreate} />
+      <EmployeeList
+        page={page}
+        employees={employees}
+        links={links}
+        pageSize={pageSize}
+        attributes={attributes}
+        onNavigate={onNavigate}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        updatePageSize={updatePageSize}
+        loggedInManager={loggedInManager}
+      />
+    </div>
+  );
+};
+
+const rootElement = document.getElementById('react');
+const rootReactElement = ReactDOMClient.createRoot(rootElement);
 rootReactElement.render(<App loggedInManager={document.getElementById('managername').innerHTML} />);

@@ -3,14 +3,29 @@
 const SockJS = require('sockjs-client');
 require('stompjs');
 
+let stompClient = null;
+const subscriptions = {};
+
 function register(registrations) {
   const socket = SockJS('/payroll');
-  const stompClient = Stomp.over(socket);
+  stompClient = Stomp.over(socket);
   stompClient.connect({}, function(frame) {
     registrations.forEach(function(registration) {
-      stompClient.subscribe(registration.route, registration.callback);
+      const subscription = stompClient.subscribe(registration.route, registration.callback);
+      subscriptions[registration.route] = subscription;
     });
   });
 }
 
-module.exports.register = register;
+function unregister(registrations) {
+  if (stompClient) {
+    registrations.forEach(function(registration) {
+      if (subscriptions[registration.route]) {
+        subscriptions[registration.route].unsubscribe();
+        delete subscriptions[registration.route];
+      }
+    });
+  }
+}
+
+module.exports = { register, unregister };
