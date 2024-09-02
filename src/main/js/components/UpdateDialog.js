@@ -29,7 +29,7 @@ const UpdateDialog = (props) => {
   const dialogId = "updateEmployee-" + props.employee.entity._links.self.href;
   const isManagerCorrect = props.employee.entity.manager.name === props.loggedInManager;
 
-  if (!isManagerCorrect && 1==2) {//!!!
+  if (!isManagerCorrect) {
     return (
       <div>
         <a>Not Your Employee</a>

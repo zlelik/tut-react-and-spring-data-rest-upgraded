@@ -97,7 +97,7 @@ const App = ({ loggedInManager }) => {
   }, []);
 
   const onUpdate = useCallback(async (employee, updatedEmployee) => {
-    if (employee.entity.manager.name === loggedInManager || 1==1) {//!!!
+    if (employee.entity.manager.name === loggedInManager) {
       updatedEmployee["manager"] = employee.entity.manager;
 
       try {
