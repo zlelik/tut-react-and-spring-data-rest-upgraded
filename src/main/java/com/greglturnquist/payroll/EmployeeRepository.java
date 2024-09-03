@@ -26,6 +26,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @PreAuthorize("hasRole('ROLE_MANAGER')")
 public interface EmployeeRepository extends PagingAndSortingRepository<Employee, Long>, CrudRepository<Employee, Long> {
 
+    /**
+     * @TODO: Looks like this PreAuthorize annotation for save method does not work. 
+     * The user, who is not manager can call save method direct HTTP call and record will be updated.
+     * However the same annotation for delete() method works fine and security cannot be bypassed.
+     */
 	@Override
 	@PreAuthorize("#employee?.manager == null or #employee?.manager?.name == authentication?.name")
 	Employee save(@Param("employee") Employee employee);
