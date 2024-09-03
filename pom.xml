@@ -8,7 +8,7 @@ Instructions for update to the latest versions of all depemdencies can be found 
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.2.3</version><!-- Fixed version (latest available in March 2024) in order to prevent project from breaking during future updates -->
+		<version>3.3.3</version><!-- Fixed version (latest available in September 2024) in order to prevent project from breaking during future updates -->
 		<relativePath/>
 	</parent>
 
@@ -21,8 +21,8 @@ Instructions for update to the latest versions of all depemdencies can be found 
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>17</java.version>
 		<frontend-src-dir>${project.basedir}/src/main/js</frontend-src-dir>
-		<node.version>v20.11.1</node.version>
-		<npm.version>10.2.4</npm.version>
+		<node.version>v20.17.0</node.version>
+		<npm.version>10.8.2</npm.version>
 		<frontend-maven-plugin.version>1.15.0</frontend-maven-plugin.version>
 	</properties>
 	<dependencies>

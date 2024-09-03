@@ -15,9 +15,9 @@ Build from command line: `mvn clean package`
 # Update all dependencies to the latest versions:
 1. Check the latest version of `spring-boot-starter-parent` artifact and update it if needed in `pom.xml` inside `<parent>` tag.
 2. Check in the google for latest stable version of node.js or here [https://nodejs.org/en/download](https://nodejs.org/en/download) (LTS version).
-3. Update node.version and npm.version to the values from step 1 above.
+3. Update node.version and npm.version inside `pom.xml` to the values from step 2 above.
 4. Get latest stable version of frontend-maven-plugin here [https://github.com/eirslett/frontend-maven-plugin/tags](https://github.com/eirslett/frontend-maven-plugin/tags)
-5. Update `frontend-maven-plugin.version` to the values from step 3 above.
+5. Update `frontend-maven-plugin.version` to the values from step 4 above.
 6. Go to folder `target\node` and run `npm install npm-check-updates`
 7. Copy file `package.json` from root of the project to `target\node` folder
 8. Run `.\node_modules\.bin\ncu --format group` from folder `target\node`.
